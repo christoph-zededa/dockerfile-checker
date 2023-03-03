@@ -13,8 +13,33 @@ import (
 	"strings"
 )
 
+var rootCmd = &cobra.Command{}
+
+func init() {
+	rootCmd = &cobra.Command{
+		Use:   "dockerfile-checker <dir>",
+		Short: "A brief description of your application",
+		Args:  cobra.ExactArgs(1),
+		Run:   rootFunc,
+	}
+}
+
 func rootFunc(cmd *cobra.Command, args []string) {
 	var paths []string
+	ignorePaths := make(map[string]struct{})
+
+	ignoreRelPaths, err := rootCmd.Flags().GetStringSlice("ignore-files")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, ign := range ignoreRelPaths {
+		absPath, err := filepath.Abs(ign)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		ignorePaths[absPath] = struct{}{}
+	}
 
 	filepath.Walk(args[0], func(p string, info fs.FileInfo, err error) error {
 		if info.Name() == "vendor" {
@@ -25,7 +50,15 @@ func rootFunc(cmd *cobra.Command, args []string) {
 		}
 
 		if info.Name() == "Dockerfile" {
-			paths = append(paths, p)
+			absPath, err := filepath.Abs(p)
+			if err != nil {
+				log.Fatal(err)
+			}
+			_, ok := ignorePaths[absPath]
+			if !ok {
+				// path is not on ignore list
+				paths = append(paths, absPath)
+			}
 		}
 		return nil
 
@@ -56,14 +89,9 @@ func checkDockerfiles(paths []string) {
 	checkInconsistencies(froms2dockerfile)
 }
 
-var rootCmd = &cobra.Command{
-	Use:   "dockerfile-checker",
-	Short: "A brief description of your application",
-	Args:  cobra.ExactArgs(1),
-	Run:   rootFunc,
-}
-
 func main() {
+	rootCmd.Flags().StringSliceP("ignore-files", "i", []string{}, "usage")
+
 	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
