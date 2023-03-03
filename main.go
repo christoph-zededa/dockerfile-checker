@@ -6,34 +6,68 @@ import (
 
 	"github.com/moby/buildkit/frontend/dockerfile/instructions"
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
+	"github.com/spf13/cobra"
+	"io/fs"
+	"log"
+	"path/filepath"
 	"strings"
 )
 
-func main() {
+func rootFunc(cmd *cobra.Command, args []string) {
+	var paths []string
+
+	filepath.Walk(args[0], func(p string, info fs.FileInfo, err error) error {
+		if info.Name() == "vendor" {
+			return filepath.SkipDir
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		if info.Name() == "Dockerfile" {
+			paths = append(paths, p)
+		}
+		return nil
+
+	})
+
+	checkDockerfiles(paths)
+}
+
+func checkDockerfiles(paths []string) {
 	var f *os.File
 	var err error
 
-	if len(os.Args) < 2 {
-		fmt.Println("please supply filename(s)")
-		os.Exit(1)
-	}
-
 	froms2dockerfile := make(map[string][]string)
-	for _, fn := range os.Args[1:] {
-		f, err = os.Open(fn)
+	for _, filename := range paths {
+		f, err = os.Open(filename)
 		if err != nil {
-			panic(err)
+			log.Fatalf("could not open %s: %+v", filename, err)
 		}
 		defer f.Close()
 
 		froms := parseDockerfile(f)
 		for _, from := range froms {
-			fns := append(froms2dockerfile[from], fn)
+			fns := append(froms2dockerfile[from], filename)
 			froms2dockerfile[from] = fns
 		}
 	}
 
 	checkInconsistencies(froms2dockerfile)
+}
+
+var rootCmd = &cobra.Command{
+	Use:   "dockerfile-checker",
+	Short: "A brief description of your application",
+	Args:  cobra.ExactArgs(1),
+	Run:   rootFunc,
+}
+
+func main() {
+	err := rootCmd.Execute()
+	if err != nil {
+		os.Exit(1)
+	}
 }
 
 func checkInconsistencies(froms2dockerfile map[string][]string) {
@@ -79,7 +113,7 @@ func parseDockerfile(f *os.File) []string {
 	var froms []string
 	result, err := parser.Parse(f)
 	if err != nil {
-		panic(err)
+		log.Fatalf("parsing %s failed: %+v", f.Name(), err)
 	}
 
 	vars := parseVars(result)
@@ -112,7 +146,7 @@ func parseVars(result *parser.Result) map[string]string {
 	vars := make(map[string]string)
 	_, metaArgs, err := instructions.Parse(result.AST)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	for _, argCmd := range metaArgs {
