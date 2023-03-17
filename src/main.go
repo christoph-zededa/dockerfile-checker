@@ -2,24 +2,24 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
+	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/moby/buildkit/frontend/dockerfile/instructions"
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
 	"github.com/spf13/cobra"
-	"io/fs"
-	"log"
-	"path/filepath"
-	"strings"
 )
 
 var rootCmd = &cobra.Command{}
 
 func init() {
 	rootCmd = &cobra.Command{
-		Use:   "dockerfile-checker <dir>",
-		Args:  cobra.ExactArgs(1),
-		Run:   rootFunc,
+		Use:  "dockerfile-checker <dir>",
+		Args: cobra.ExactArgs(1),
+		Run:  rootFunc,
 	}
 }
 
@@ -60,7 +60,6 @@ func rootFunc(cmd *cobra.Command, args []string) {
 			}
 		}
 		return nil
-
 	})
 
 	checkDockerfiles(paths)
@@ -144,11 +143,9 @@ func parseDockerfile(f *os.File) []string {
 	}
 
 	vars := parseVars(result)
-	_ = vars
 	var next *parser.Node
 	for _, node := range result.AST.Children {
 		if node.Value == "FROM" {
-			next = node.Next
 			next = node.Next
 			if next == nil {
 				break
@@ -181,7 +178,6 @@ func parseVars(result *parser.Result) map[string]string {
 			continue
 		}
 		for _, argCmdArg := range argCmd.Args {
-
 			vars[argCmdArg.Key] = argCmdArg.ValueString()
 		}
 	}
