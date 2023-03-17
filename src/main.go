@@ -18,7 +18,6 @@ var rootCmd = &cobra.Command{}
 func init() {
 	rootCmd = &cobra.Command{
 		Use:   "dockerfile-checker <dir>",
-		Short: "A brief description of your application",
 		Args:  cobra.ExactArgs(1),
 		Run:   rootFunc,
 	}
